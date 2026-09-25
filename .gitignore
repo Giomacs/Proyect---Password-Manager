@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Test / coverage output
+TestResults/
+coverage/
+
+# Runtime vaults and logs — never commit user data
+*.vault
+*.pmv
+*.spm
+security.log
+logs/
+
+# Local configuration / secrets
+.env
+*.local.json
