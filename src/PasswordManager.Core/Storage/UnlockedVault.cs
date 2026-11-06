@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using PasswordManager.Core.Models;
 using PasswordManager.Core.Security;
 using PasswordManager.Core.Validation;
@@ -35,16 +36,121 @@ public sealed class UnlockedVault : IDisposable
         get { lock (_gate) { EnsureOpen(); return _dirty; } }
     }
 
-    /// <summary>Lists limited metadata, never credential passwords.</summary>
+    /// <summary>
+    /// Lists password-free display information. Website and notes are read from
+    /// authenticated encrypted records, not added to plaintext vault metadata.
+    /// The credential password is never converted into a managed string here.
+    /// </summary>
     public IReadOnlyList<VaultEntrySummary> ListEntries()
     {
         lock (_gate)
         {
             EnsureOpen();
-            return _index.Entries!.Select(entry => new VaultEntrySummary(
-                Guid.ParseExact(entry.Id!, "D"), entry.Title!, entry.Username)).ToArray();
+            var result = new List<VaultEntrySummary>(_index.Entries!.Count);
+            foreach (VaultIndexEntry entry in _index.Entries)
+            {
+                Guid id = Guid.ParseExact(entry.Id!, "D");
+                VaultEncryptedRecord record = _document.Records!
+                    .Find(item => RecordIdIs(item, id))
+                    ?? throw new InvalidDataException("Vault record is missing.");
+
+                byte[] plaintext = VaultAesGcm.DecryptRecord(_vaultKey, record);
+                try
+                {
+                    (string? url, string? notes) = ReadDisplayFields(plaintext, entry);
+                    result.Add(new VaultEntrySummary(
+                        id, entry.Title!, entry.Username, url, notes));
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(plaintext);
+                }
+            }
+            return result;
         }
     }
+
+    private static (string? Url, string? Notes) ReadDisplayFields(
+        ReadOnlySpan<byte> json, VaultIndexEntry expected)
+    {
+        try
+        {
+            // Parse directly from the decrypted byte buffer. In particular,
+            // do not materialize the Password JSON value as a C# string.
+            var reader = new Utf8JsonReader(json, new JsonReaderOptions
+            {
+                MaxDepth = 16,
+                CommentHandling = JsonCommentHandling.Disallow,
+                AllowTrailingCommas = false
+            });
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                throw new InvalidDataException("Invalid credential record.");
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            string? title = null;
+            string? username = null;
+            string? url = null;
+            string? notes = null;
+            bool hasPassword = false;
+            bool closed = false;
+
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndObject)
+                {
+                    closed = true;
+                    break;
+                }
+                if (reader.TokenType != JsonTokenType.PropertyName)
+                    throw new InvalidDataException("Invalid credential record.");
+                string propertyName = reader.GetString()
+                    ?? throw new InvalidDataException("Invalid credential record.");
+                if (!seen.Add(propertyName) || !reader.Read())
+                    throw new InvalidDataException("Invalid credential record.");
+
+                switch (propertyName)
+                {
+                    case "Title": title = ReadOptionalText(ref reader); break;
+                    case "Username": username = ReadOptionalText(ref reader); break;
+                    case "Password":
+                        if (reader.TokenType != JsonTokenType.String)
+                            throw new InvalidDataException("Invalid credential record.");
+                        hasPassword = true; // No call to GetString() for passwords.
+                        break;
+                    case "Url": url = ReadOptionalText(ref reader); break;
+                    case "Notes": notes = ReadOptionalText(ref reader); break;
+                    default: throw new InvalidDataException("Invalid credential record.");
+                }
+            }
+
+            if (!closed || reader.Read() || !hasPassword ||
+                !StringComparer.Ordinal.Equals(title, expected.Title) ||
+                !StringComparer.Ordinal.Equals(username ?? string.Empty, expected.Username) ||
+                !CredentialValidator.Validate(new CredentialInput
+                {
+                    Title = title,
+                    Username = username,
+                    Password = "x", // Only validate non-password display fields here.
+                    Url = url,
+                    Notes = notes
+                }).IsValid)
+                throw new InvalidDataException("Invalid credential record.");
+
+            return (url, notes);
+        }
+        catch (JsonException)
+        {
+            throw new InvalidDataException("Invalid credential record.");
+        }
+    }
+
+    private static string? ReadOptionalText(ref Utf8JsonReader reader)
+        => reader.TokenType switch
+        {
+            JsonTokenType.String => reader.GetString(),
+            JsonTokenType.Null => null,
+            _ => throw new InvalidDataException("Invalid credential record.")
+        };
 
     public Guid AddCredential(CredentialInput input)
     {

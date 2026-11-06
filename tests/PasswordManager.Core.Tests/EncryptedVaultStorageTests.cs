@@ -72,9 +72,36 @@ public sealed class EncryptedVaultStorageTests
         Assert.Equal(id, summary.Id);
         Assert.Equal("Example Website", summary.Title);
         Assert.Equal("demo-user", summary.Username);
+        Assert.Equal("https://example.invalid/login", summary.Url);
+        Assert.Equal("Synthetic test note", summary.Notes);
+        Assert.True(summary.HasWebsite);
+        Assert.True(summary.HasNotes);
+        Assert.DoesNotContain(Secret, summary.ToString());
+        Assert.DoesNotContain("Synthetic test note", summary.ToString());
         CredentialInput actual = restored.GetCredential(id);
         Assert.Equal(Secret, actual.Password);
         Assert.Equal("https://example.invalid/login", actual.Url);
+    }
+
+    [Fact]
+    public void DisplaySummary_OmitsOptionalWebsiteAndNotes()
+    {
+        using var directory = new TemporaryVaultDirectory();
+        var repo = Repository(directory);
+        using var opened = NewVault(repo);
+        opened.AddCredential(new CredentialInput
+        {
+            Title = "Local-only entry",
+            Username = "demo-user",
+            Password = Secret
+        });
+        opened.Save();
+
+        VaultEntrySummary summary = Assert.Single(opened.ListEntries());
+        Assert.False(summary.HasWebsite);
+        Assert.False(summary.HasNotes);
+        Assert.Null(summary.Url);
+        Assert.Null(summary.Notes);
     }
 
     [Fact]

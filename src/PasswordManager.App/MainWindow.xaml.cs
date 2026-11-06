@@ -19,6 +19,20 @@ namespace PasswordManager.App;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private enum CredentialViewMode { List, Cards }
+    private CredentialViewMode _credentialViewMode = CredentialViewMode.List;
+
+    // Card width is a dependency property so WPF bindings update when the window is resized.
+    public static readonly DependencyProperty EntryCardWidthProperty =
+        DependencyProperty.Register(nameof(EntryCardWidth), typeof(double), typeof(MainWindow),
+            new PropertyMetadata(320.0));
+
+    public double EntryCardWidth
+    {
+        get => (double)GetValue(EntryCardWidthProperty);
+        private set => SetValue(EntryCardWidthProperty, value);
+    }
+
     private readonly VaultSessionManager _session;
     private readonly PasswordClipboardGuard _clipboard;
     private readonly DispatcherTimer _uiTimer;
@@ -31,6 +45,8 @@ public partial class MainWindow : Window
         _session = new VaultSessionManager();
         _clipboard = new PasswordClipboardGuard();
         UndoSuppression.Install(this);
+
+        ConfigureEntryView(CredentialViewMode.List);
 
         _uiTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _uiTimer.Tick += UiTimer_Tick;
@@ -289,9 +305,77 @@ public partial class MainWindow : Window
 
     private void RefreshEntries()
     {
-        _entries = _session.ListEntries();
-        CountText.Text = _entries.Count == 1 ? "1 entry" : $"{_entries.Count} entries";
-        ApplySearchFilter();
+        try
+        {
+            _entries = _session.ListEntries();
+            CountText.Text = _entries.Count == 1 ? "1 entry" : $"{_entries.Count} entries";
+            ApplySearchFilter();
+        }
+        catch (Exception ex) when (IsExpectedUiError(ex))
+        {
+            // Never leave stale credential details visible after a read failure.
+            EntryList.ItemsSource = null;
+            _entries = Array.Empty<VaultEntrySummary>();
+            _session.Lock();
+            UpdateViewFromSession();
+        }
+    }
+
+    private void ListView_Click(object sender, RoutedEventArgs e)
+        => ConfigureEntryView(CredentialViewMode.List);
+
+    private void CardsView_Click(object sender, RoutedEventArgs e)
+        => ConfigureEntryView(CredentialViewMode.Cards);
+
+    private void ConfigureEntryView(CredentialViewMode mode)
+    {
+        // The same ListBox is used in both modes. Selection, searching,
+        // authorization checks, and password-free summaries are unchanged.
+        Guid? selectedId = SelectedEntry?.Id;
+        _credentialViewMode = mode;
+
+        EntryList.ItemTemplate = (DataTemplate)FindResource(
+            mode == CredentialViewMode.List ? "CredentialRowTemplate" : "CredentialCardTemplate");
+        EntryList.ItemsPanel = (ItemsPanelTemplate)FindResource(
+            mode == CredentialViewMode.List ? "CredentialListPanel" : "CredentialCardPanel");
+
+        if (mode == CredentialViewMode.Cards)
+            UpdateEntryCardWidth();
+
+        if (selectedId.HasValue)
+            EntryList.SelectedItem = EntryList.Items.OfType<VaultEntrySummary>()
+                .FirstOrDefault(entry => entry.Id == selectedId.Value);
+
+        // Give the active view a light green highlight.
+        var activeBackground = (Brush)FindResource("AccentPaleBrush");
+        var activeBorder = (Brush)FindResource("AccentBrush");
+        var inactiveBorder = (Brush)FindResource("LineBrush");
+        ListViewButton.Background = mode == CredentialViewMode.List ? activeBackground : Brushes.White;
+        ListViewButton.BorderBrush = mode == CredentialViewMode.List ? activeBorder : inactiveBorder;
+        CardsViewButton.Background = mode == CredentialViewMode.Cards ? activeBackground : Brushes.White;
+        CardsViewButton.BorderBrush = mode == CredentialViewMode.Cards ? activeBorder : inactiveBorder;
+
+        UpdateSelectionButtons();
+    }
+
+    private void EntryList_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_credentialViewMode == CredentialViewMode.Cards)
+            UpdateEntryCardWidth();
+    }
+
+    private void UpdateEntryCardWidth()
+    {
+        // Reserve room for a scrollbar so cards never cause horizontal scrolling.
+        double available = EntryList.ActualWidth - SystemParameters.VerticalScrollBarWidth - 12;
+        if (available <= 0)
+            return;
+
+        const double minimumCardWidth = 290;
+        const double cardGap = 12;
+        int columns = Math.Clamp((int)Math.Floor((available + cardGap) /
+                             (minimumCardWidth + cardGap)), 1, 3);
+        EntryCardWidth = Math.Max(190, Math.Floor(available / columns) - cardGap - 8);
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -308,7 +392,8 @@ public partial class MainWindow : Window
             ? _entries
             : _entries.Where(item =>
                 item.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                (item.Username?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+                (item.Username?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (item.Url?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
                 .ToArray();
 
         EntryList.ItemsSource = visible;

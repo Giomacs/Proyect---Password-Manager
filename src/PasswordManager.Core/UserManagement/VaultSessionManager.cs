@@ -221,9 +221,22 @@ public sealed class VaultSessionManager : IDisposable
         lock (_gate)
         {
             UnlockedVault vault = RequireUnlocked();
-            IReadOnlyList<VaultEntrySummary> result = vault.ListEntries();
-            MarkActivity();
-            return result;
+            try
+            {
+                IReadOnlyList<VaultEntrySummary> result = vault.ListEntries();
+                MarkActivity();
+                return result;
+            }
+            catch (CryptographicException)
+            {
+                LockCore(VaultLockReason.IntegrityFailure);
+                throw;
+            }
+            catch (InvalidDataException)
+            {
+                LockCore(VaultLockReason.IntegrityFailure);
+                throw;
+            }
         }
     }
 

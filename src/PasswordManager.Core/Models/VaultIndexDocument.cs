@@ -32,4 +32,16 @@ public sealed class VaultIndexEntry
     public string? CiphertextSha256 { get; set; }
 }
 
-public sealed record VaultEntrySummary(Guid Id, string Title, string? Username);
+/// <summary>
+/// Read-only credential information for the unlocked vault list.
+/// Deliberately excludes the credential password.
+/// </summary>
+public sealed record VaultEntrySummary(
+    Guid Id, string Title, string? Username, string? Url = null, string? Notes = null)
+{
+    public bool HasWebsite => !string.IsNullOrWhiteSpace(Url);
+    public bool HasNotes => !string.IsNullOrWhiteSpace(Notes);
+
+    // Notes may contain sensitive text; prevent accidental diagnostic output.
+    public override string ToString() => "VaultEntrySummary (sensitive metadata)";
+}
