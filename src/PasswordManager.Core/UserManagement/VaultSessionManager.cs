@@ -93,6 +93,31 @@ public sealed class VaultSessionManager : IDisposable
         get { lock (_gate) { EnsureNotDisposed(); return _inactivityTimeout; } }
     }
 
+    public TimeSpan TimeUntilAutoLock
+    {
+        get
+        {
+            lock (_gate)
+            {
+                EnsureNotDisposed();
+
+                // Ensure an expired session is locked.
+                ExpireIfIdle();
+
+                if (_vault is null)
+                    return TimeSpan.Zero;
+
+                TimeSpan elapsed = _clock.GetElapsedTime(_lastActivity);
+
+                TimeSpan remaining = _inactivityTimeout - elapsed;
+
+                return remaining > TimeSpan.Zero
+                    ? remaining
+                    : TimeSpan.Zero;
+            }
+        }
+    }
+
     /// <summary>
     /// UI-only throttle. Does not defend against offline guesses and can be
     /// reset by restarting the process; Argon2id is the offline control.

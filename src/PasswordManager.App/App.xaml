@@ -1,9 +1,112 @@
 ﻿<Application x:Class="PasswordManager.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PasswordManager.App"
              StartupUri="MainWindow.xaml">
-    <Application.Resources>
-         
-    </Application.Resources>
+	<Application.Resources>
+		<SolidColorBrush x:Key="CanvasBrush" Color="#F4FAF4" />
+		<SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+		<SolidColorBrush x:Key="AccentBrush" Color="#3B8657" />
+		<SolidColorBrush x:Key="AccentHoverBrush" Color="#286941" />
+		<SolidColorBrush x:Key="AccentPaleBrush" Color="#E0F3E5" />
+		<SolidColorBrush x:Key="InkBrush" Color="#1C3A2B" />
+		<SolidColorBrush x:Key="MutedBrush" Color="#61766A" />
+		<SolidColorBrush x:Key="LineBrush" Color="#D4E6D8" />
+		<SolidColorBrush x:Key="ErrorBrush" Color="#A63737" />
+		<SolidColorBrush x:Key="WarmBrush" Color="#F5EEE4" />
+
+		<Style TargetType="TextBlock">
+			<Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+			<Setter Property="FontFamily" Value="Segoe UI" />
+		</Style>
+
+		<!-- TextBox undo history is disabled, including in the modal editor. -->
+		<Style TargetType="TextBox">
+			<Setter Property="IsUndoEnabled" Value="False" />
+			<Setter Property="Background" Value="White" />
+			<Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="FontSize" Value="14" />
+			<Setter Property="Padding" Value="11,8" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+			<Setter Property="MinHeight" Value="39" />
+			<Setter Property="SpellCheck.IsEnabled" Value="False" />
+		</Style>
+
+		<Style TargetType="PasswordBox">
+			<Setter Property="Background" Value="White" />
+			<Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="FontSize" Value="14" />
+			<Setter Property="Padding" Value="11,8" />
+			<Setter Property="MinHeight" Value="39" />
+		</Style>
+
+		<Style x:Key="PrimaryButton" TargetType="Button">
+			<Setter Property="Background" Value="{StaticResource AccentBrush}" />
+			<Setter Property="Foreground" Value="White" />
+			<Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="FontSize" Value="14" />
+			<Setter Property="Padding" Value="17,11" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="MinHeight" Value="41" />
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="Surface" Background="{TemplateBinding Background}"
+                                CornerRadius="9" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" Padding="{TemplateBinding Padding}">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="Surface" Property="Background" Value="{StaticResource AccentHoverBrush}" />
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter TargetName="Surface" Property="Opacity" Value="0.52" />
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+			<Setter Property="Background" Value="White" />
+			<Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="Surface" Background="{TemplateBinding Background}"
+                                CornerRadius="9" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" Padding="{TemplateBinding Padding}">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="Surface" Property="Background" Value="{StaticResource AccentPaleBrush}" />
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter TargetName="Surface" Property="Opacity" Value="0.48" />
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+			<Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+		</Style>
+
+		<Style x:Key="FieldLabel" TargetType="TextBlock">
+			<Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Margin" Value="0,13,0,5" />
+		</Style>
+	</Application.Resources>
 </Application>
