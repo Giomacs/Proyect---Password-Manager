@@ -315,6 +315,51 @@ public sealed class VaultSessionManagerTests
         Assert.Equal(VaultLockReason.Inactivity, session.LastLockReason);
     }
 
+    [Fact]
+    public void AutoLockCountdown_IsReadOnlyAndExpiresAtTheRealDeadline()
+    {
+        using var directory = new TemporaryDirectory();
+        var repository = new VaultRepository(directory.Path);
+        CreateFixtureVault(repository);
+        var clock = new ManualClock();
+        using var session = NewSession(repository, clock);
+
+        Assert.Equal(TimeSpan.Zero, session.TimeUntilAutoLock);
+        session.Unlock(Master);
+        Assert.Equal(IdleTime, session.TimeUntilAutoLock);
+
+        clock.Advance(TimeSpan.FromMinutes(2));
+        for (int i = 0; i < 10; i++)
+            Assert.Equal(TimeSpan.FromMinutes(3), session.TimeUntilAutoLock);
+
+        clock.Advance(TimeSpan.FromMinutes(3));
+        Assert.Equal(TimeSpan.Zero, session.TimeUntilAutoLock);
+        Assert.False(session.IsUnlocked);
+        Assert.Equal(VaultLockReason.Inactivity, session.LastLockReason);
+        Assert.Throws<InvalidOperationException>(() => session.ListEntries());
+    }
+
+    [Fact]
+    public void ChangingAutoLockSetting_DoesNotCountAsUserActivity()
+    {
+        using var directory = new TemporaryDirectory();
+        var repository = new VaultRepository(directory.Path);
+        CreateFixtureVault(repository);
+        var clock = new ManualClock();
+        using var session = NewSession(repository, clock);
+        session.Unlock(Master);
+
+        clock.Advance(TimeSpan.FromMinutes(4));
+        Assert.Equal(TimeSpan.FromMinutes(1), session.TimeUntilAutoLock);
+
+        session.SetInactivityTimeout(TimeSpan.FromMinutes(6));
+        Assert.Equal(TimeSpan.FromMinutes(2), session.TimeUntilAutoLock);
+
+        clock.Advance(TimeSpan.FromMinutes(2));
+        Assert.False(session.IsUnlocked);
+        Assert.Equal(VaultLockReason.Inactivity, session.LastLockReason);
+    }
+
     private sealed class ManualClock : ISessionClock
     {
         private long _ticks;

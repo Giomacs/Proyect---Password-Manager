@@ -17,6 +17,7 @@ public sealed class VaultTamperingTests
     [InlineData("record-id")]
     [InlineData("index-tag")]
     [InlineData("wrap-tag")]
+    [InlineData("wrap-nonce")]
     public void TamperedVault_FailsBeforeUnlock(string modification)
     {
         using var temp = new TemporaryVaultDirectory();
@@ -49,9 +50,12 @@ public sealed class VaultTamperingTests
             case "wrap-tag":
                 doc.WrappedVaultKey!.Tag = FlipFirstDecodedByte(doc.WrappedVaultKey.Tag!);
                 break;
+            case "wrap-nonce":
+                doc.WrappedVaultKey!.Nonce = FlipFirstDecodedByte(doc.WrappedVaultKey.Nonce!);
+                break;
         }
         File.WriteAllText(temp.VaultFile, JsonSerializer.Serialize(doc));
-        if (modification is "index-tag" or "wrap-tag")
+        if (modification is "index-tag" or "wrap-tag" or "wrap-nonce")
             Assert.Throws<CryptographicException>(() => repo.Open(Master));
         else
             Assert.Throws<InvalidDataException>(() => repo.Open(Master));

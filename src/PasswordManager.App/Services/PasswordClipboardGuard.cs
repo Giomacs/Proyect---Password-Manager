@@ -15,7 +15,7 @@ namespace PasswordManager.App.Services;
 /// </summary>
 internal sealed class PasswordClipboardGuard : IDisposable
 {
-    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(20) };
+    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(10) };
     private byte[]? _key;
     private byte[]? _expectedHmac;
     private bool _disposed;

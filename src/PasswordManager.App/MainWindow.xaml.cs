@@ -525,7 +525,7 @@ public partial class MainWindow : Window
         {
             CredentialInput credential = _session.GetCredential(entry.Id);
             _clipboard.CopyPassword(credential.Password ?? string.Empty);
-            SetVaultStatus("Password copied. The application will try to clear it in 20 seconds.");
+            SetVaultStatus("Password copied. The application will try to clear it in 10 seconds.");
         }
         catch (Exception ex) when (IsExpectedUiError(ex))
         {

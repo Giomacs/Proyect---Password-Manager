@@ -266,6 +266,46 @@ public sealed class EncryptedVaultStorageTests
         Assert.Null(reopened.GetCredential(id).Username);
     }
 
+    [Fact]
+    public void FailedUnlock_DoesNotAlterEncryptedVaultBytes()
+    {
+        using var directory = new TemporaryVaultDirectory();
+        var repository = Repository(directory);
+        using (UnlockedVault vault = NewVault(repository))
+        {
+            vault.AddCredential(Example());
+            vault.Save();
+        }
+
+        byte[] originalFile = File.ReadAllBytes(directory.VaultFile);
+        Assert.Throws<CryptographicException>(() => repository.Open(WrongMaster));
+        Assert.Equal(originalFile, File.ReadAllBytes(directory.VaultFile));
+
+        using var validSession = repository.Open(Master);
+        Guid id = Assert.Single(validSession.ListEntries()).Id;
+        Assert.Equal(Secret, validSession.GetCredential(id).Password);
+    }
+
+    [Fact]
+    public void RejectedOversizedNote_DoesNotMarkVaultDirtyOrChangeDisk()
+    {
+        using var directory = new TemporaryVaultDirectory();
+        var repository = Repository(directory);
+        using var vault = NewVault(repository);
+        byte[] originalFile = File.ReadAllBytes(directory.VaultFile);
+
+        Assert.Throws<ArgumentException>(() => vault.AddCredential(new CredentialInput
+        {
+            Title = "Invalid oversized note",
+            Password = Secret,
+            Notes = new string('N', 16_385)
+        }));
+
+        Assert.False(vault.HasUnsavedChanges);
+        Assert.Empty(vault.ListEntries());
+        Assert.Equal(originalFile, File.ReadAllBytes(directory.VaultFile));
+    }
+
     private sealed class TemporaryVaultDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(
